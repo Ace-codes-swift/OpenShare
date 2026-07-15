@@ -6,6 +6,7 @@
 #include "protocol.hpp"
 #include "vt_encoder.hpp"
 
+#include <CoreFoundation/CoreFoundation.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <ScreenCapture.h>
 
@@ -477,7 +478,17 @@ int main() {
         showWorkerReadyDialog(managerCode);
     }
 
-    sessionThread.join();
-    running = false;
+    // Keep pumping the AppKit/CF run loop on the main thread. While the
+    // pairing alert was open, runModal did this for us. After "Done", the old
+    // code called sessionThread.join() which parked main with no run loop —
+    // ScreenCapture/TCC/AppKit cleanup then crashed, even though the worker
+    // thread kept accepting connections ("crashes but still works").
+    while (running.load()) {
+        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
+    }
+
+    if (sessionThread.joinable()) {
+        sessionThread.join();
+    }
     return 0;
 }

@@ -158,47 +158,51 @@ std::string generateCode() {
 }
 
 void showWorkerCode(const std::string& code) {
-    prepareDialogApp();
+    @autoreleasepool {
+        prepareDialogApp();
 
-    std::string addrLine = "Address: ";
-    const auto ips = localIPv4Addresses();
-    if (ips.empty()) {
-        addrLine += "(no network address detected)";
-    } else {
-        for (size_t i = 0; i < ips.size(); ++i) {
-            if (i > 0) {
-                addrLine += ", ";
+        std::string addrLine = "Address: ";
+        const auto ips = localIPv4Addresses();
+        if (ips.empty()) {
+            addrLine += "(no network address detected)";
+        } else {
+            for (size_t i = 0; i < ips.size(); ++i) {
+                if (i > 0) {
+                    addrLine += ", ";
+                }
+                addrLine += ips[i];
             }
-            addrLine += ips[i];
         }
-    }
 
-    NSAlert* alert = [[NSAlert alloc] init];
-    alert.messageText = @"OpenShare worker is ready to pair";
-    alert.informativeText = [NSString
-        stringWithFormat:@"The worker is already listening. On your other Mac, "
-                          @"open OpenShare and enter this Mac's address and the "
-                          @"manager code below.\n\n%s\n\n"
-                          @"Click Done when you've copied the code — the "
-                          @"worker keeps running in the background.",
-                         addrLine.c_str()];
-    [alert addButtonWithTitle:@"Copy Code"];
-    [alert addButtonWithTitle:@"Done"];
+        NSAlert* alert = [[NSAlert alloc] init];
+        alert.messageText = @"OpenShare worker is ready to pair";
+        alert.informativeText = [NSString
+            stringWithFormat:
+                @"The worker is already listening. On your other Mac, open "
+                 @"OpenShare and enter this Mac's address and the manager code "
+                 @"below.\n\n%s\n\n"
+                 @"Click Hide when you've copied the code — the worker stays "
+                 @"running in the background (no Dock icon).",
+            addrLine.c_str()];
+        [alert addButtonWithTitle:@"Copy Code"];
+        [alert addButtonWithTitle:@"Hide"];
 
-    NSTextField* field =
-        [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 360, 32)];
-    field.stringValue = [NSString stringWithUTF8String:code.c_str()];
-    field.editable = NO;
-    field.selectable = YES;
-    field.alignment = NSTextAlignmentCenter;
-    field.font = [NSFont monospacedSystemFontOfSize:18
-                                             weight:NSFontWeightSemibold];
-    alert.accessoryView = field;
+        NSTextField* field =
+            [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 360, 32)];
+        field.stringValue = [NSString stringWithUTF8String:code.c_str()];
+        field.editable = NO;
+        field.selectable = YES;
+        field.alignment = NSTextAlignmentCenter;
+        field.font = [NSFont monospacedSystemFontOfSize:18
+                                                 weight:NSFontWeightSemibold];
+        alert.accessoryView = field;
 
-    while ([alert runModal] == NSAlertFirstButtonReturn) {
-        NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
-        [pasteboard clearContents];
-        [pasteboard setString:field.stringValue forType:NSPasteboardTypeString];
+        while ([alert runModal] == NSAlertFirstButtonReturn) {
+            NSPasteboard* pasteboard = [NSPasteboard generalPasteboard];
+            [pasteboard clearContents];
+            [pasteboard setString:field.stringValue
+                          forType:NSPasteboardTypeString];
+        }
     }
 }
 
