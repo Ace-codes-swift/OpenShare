@@ -9,6 +9,40 @@ macOS remote desktop (v1): control a companion host from a viewer, with Full HD 
 | `OpenShare` | Viewer (manager side) — shows remote screen, sends mouse/keyboard |
 | `OpenShareCompanion` | Host (worker) — captures screen, injects input, streams video |
 
+## C++ client library
+
+Embed the same connect / decode / input path in another C++ program via
+`OpenShareClient` (static lib `libopenshare_client.a`).
+
+```cpp
+#include <openshare/client.hpp>
+
+openshare::ConnectError err;
+std::string message;
+auto session = openshare::connect("192.168.1.20", 9000, "XXXX-XXXX-XXXX-XXXX-XXXX",
+                                  &err, &message);
+if (!session) { /* handle message */ }
+
+openshare::Frame frame;
+while (session->connected()) {
+    if (session->takeFrame(frame)) {
+        // frame.bgra is BGRA32, frame.width x frame.height
+    }
+    session->sendMouseMove(0.5f, 0.5f); // normalized [0,1]
+}
+```
+
+Build:
+
+```bash
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --target OpenShareClient openshare_client_example
+```
+
+Link your target against `OpenShareClient` (alias `OpenShare::Client`) and the
+Apple frameworks already attached to that target. See
+`examples/client_example.cpp` and `include/openshare/client.hpp`.
+
 ## Install (recommended: prebuilt apps)
 
 One-time on the build Mac — create a stable signing identity so macOS
