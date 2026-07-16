@@ -76,6 +76,48 @@ void scaleBgra(const uint8_t* src,
     }
 }
 
+// Alpha-blend a BGRA cursor onto a BGRA frame. destX/destY are the top-left
+// of the cursor bitmap in frame pixel coordinates.
+void blitCursorBgra(uint8_t* frame,
+                    int frameW,
+                    int frameH,
+                    const uint8_t* cursor,
+                    int cursorW,
+                    int cursorH,
+                    int destX,
+                    int destY) {
+    for (int y = 0; y < cursorH; ++y) {
+        const int fy = destY + y;
+        if (fy < 0 || fy >= frameH) {
+            continue;
+        }
+        for (int x = 0; x < cursorW; ++x) {
+            const int fx = destX + x;
+            if (fx < 0 || fx >= frameW) {
+                continue;
+            }
+            const uint8_t* s = cursor + (static_cast<size_t>(y) * cursorW + x) * 4;
+            uint8_t* d = frame + (static_cast<size_t>(fy) * frameW + fx) * 4;
+            const unsigned a = s[3];
+            if (a == 0) {
+                continue;
+            }
+            if (a == 255) {
+                d[0] = s[0];
+                d[1] = s[1];
+                d[2] = s[2];
+                d[3] = 255;
+                continue;
+            }
+            const unsigned ia = 255 - a;
+            d[0] = static_cast<uint8_t>((s[0] * a + d[0] * ia) / 255);
+            d[1] = static_cast<uint8_t>((s[1] * a + d[1] * ia) / 255);
+            d[2] = static_cast<uint8_t>((s[2] * a + d[2] * ia) / 255);
+            d[3] = 255;
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -257,6 +299,20 @@ int main() {
         std::atomic<bool> sessionActive{true};
         std::mutex sendMutex;
 
+        // Host cursor stays visible on the worker Mac and is painted into the
+        // video frames. We do NOT send a separate CursorImage to the viewer
+        // (that path was Retina-broken: huge / soft / wrong hotspot).
+        std::mutex cursorMutex;
+        std::vector<uint8_t> cursorBgra;
+        int cursorW = 0;
+        int cursorH = 0;
+        int cursorHotX = 0;
+        int cursorHotY = 0;
+        // Position of the hotspot in capture-pixel coordinates.
+        int cursorPx = 0;
+        int cursorPy = 0;
+        bool cursorHaveImage = false;
+
         auto captureManager =
             SL::Screen_Capture::CreateCaptureConfiguration([]() {
                 auto monitors = SL::Screen_Capture::GetMonitors();
@@ -279,54 +335,34 @@ int main() {
                 })
                 ->onMouseChanged([&](const SL::Screen_Capture::Image* img,
                                     const SL::Screen_Capture::MousePoint& mouse) {
-                    // A null image means only the cursor position moved. We
-                    // send only shape changes; viewer movement is already local.
-                    if (!img || !sessionActive) {
+                    if (!sessionActive) {
                         return;
                     }
-                    int width = Width(*img);
-                    int height = Height(*img);
+                    // CGEvent location is in global points; capture is pixels.
+                    const int px = static_cast<int>(
+                        (mouse.Position.x - mainBounds.origin.x) * backingScale);
+                    const int py = static_cast<int>(
+                        (mouse.Position.y - mainBounds.origin.y) * backingScale);
+
+                    std::lock_guard<std::mutex> lock(cursorMutex);
+                    cursorPx = px;
+                    cursorPy = py;
+                    if (!img) {
+                        return;
+                    }
+                    const int width = Width(*img);
+                    const int height = Height(*img);
                     if (width <= 0 || height <= 0 || width > 512 || height > 512) {
                         return;
                     }
-                    std::vector<uint8_t> pixels(
-                        static_cast<size_t>(width) * height *
-                        sizeof(SL::Screen_Capture::ImageBGRA));
-                    SL::Screen_Capture::Extract(*img, pixels.data(), pixels.size());
-                    int hotX = std::clamp(mouse.HotSpot.x, 0, width - 1);
-                    int hotY = std::clamp(mouse.HotSpot.y, 0, height - 1);
-
-                    // The bitmap and hotspot are in physical pixels; the viewer
-                    // draws the cursor in points. On Retina (2x) that made the
-                    // cursor twice as big with a misplaced hotspot — scale it
-                    // back down by the backing factor. (Computed from the
-                    // display mode, NOT from the first captured frame: cursor
-                    // updates often arrive before any frame, which previously
-                    // skipped the scaling and left the cursor huge.)
-                    const double scale = backingScale;
-                    if (scale > 1.25) {
-                        const int outW = std::max(1, static_cast<int>(width / scale));
-                        const int outH = std::max(1, static_cast<int>(height / scale));
-                        std::vector<uint8_t> shrunk(static_cast<size_t>(outW) * outH * 4);
-                        scaleBgra(pixels.data(), width, height, shrunk.data(), outW, outH);
-                        pixels = std::move(shrunk);
-                        hotX = std::clamp(static_cast<int>(hotX / scale), 0, outW - 1);
-                        hotY = std::clamp(static_cast<int>(hotY / scale), 0, outH - 1);
-                        width = outW;
-                        height = outH;
-                    }
-
-                    auto message = encodeCursorImage(
-                        static_cast<uint32_t>(width),
-                        static_cast<uint32_t>(height),
-                        static_cast<uint32_t>(hotX),
-                        static_cast<uint32_t>(hotY),
-                        pixels.data(),
-                        pixels.size());
-                    std::lock_guard<std::mutex> lock(sendMutex);
-                    if (!client->sendAll(message)) {
-                        sessionActive = false;
-                    }
+                    cursorBgra.resize(static_cast<size_t>(width) * height *
+                                      sizeof(SL::Screen_Capture::ImageBGRA));
+                    SL::Screen_Capture::Extract(*img, cursorBgra.data(), cursorBgra.size());
+                    cursorW = width;
+                    cursorH = height;
+                    cursorHotX = std::clamp(mouse.HotSpot.x, 0, width - 1);
+                    cursorHotY = std::clamp(mouse.HotSpot.y, 0, height - 1);
+                    cursorHaveImage = true;
                 })
                 ->start_capturing();
 
@@ -405,6 +441,58 @@ int main() {
                     } else {
                         scaleBgra(local.data(), w, h, scaled.data(), encodeW, encodeH);
                     }
+
+                    // Paint the real host cursor into the frame so the viewer
+                    // never needs a separate (Retina-broken) cursor overlay.
+                    {
+                        std::vector<uint8_t> cur;
+                        int cw = 0, ch = 0, hx = 0, hy = 0, cpx = 0, cpy = 0;
+                        bool have = false;
+                        {
+                            std::lock_guard<std::mutex> lock(cursorMutex);
+                            have = cursorHaveImage;
+                            if (have) {
+                                cur = cursorBgra;
+                                cw = cursorW;
+                                ch = cursorH;
+                                hx = cursorHotX;
+                                hy = cursorHotY;
+                                cpx = cursorPx;
+                                cpy = cursorPy;
+                            }
+                        }
+                        if (have && !cur.empty() && cw > 0 && ch > 0) {
+                            // Map capture-pixel hotspot into encode space if we scaled.
+                            const int mappedX =
+                                (w > 0) ? (cpx * encodeW) / w : cpx;
+                            const int mappedY =
+                                (h > 0) ? (cpy * encodeH) / h : cpy;
+                            const int hotMappedX =
+                                (w > 0 && w != encodeW) ? (hx * encodeW) / w : hx;
+                            const int hotMappedY =
+                                (h > 0 && h != encodeH) ? (hy * encodeH) / h : hy;
+                            std::vector<uint8_t> curScaled;
+                            const uint8_t* blitSrc = cur.data();
+                            int blitW = cw;
+                            int blitH = ch;
+                            if (w != encodeW || h != encodeH) {
+                                blitW = std::max(1, (cw * encodeW) / std::max(1, w));
+                                blitH = std::max(1, (ch * encodeH) / std::max(1, h));
+                                curScaled.resize(static_cast<size_t>(blitW) * blitH * 4);
+                                scaleBgra(cur.data(), cw, ch, curScaled.data(), blitW, blitH);
+                                blitSrc = curScaled.data();
+                            }
+                            blitCursorBgra(scaled.data(),
+                                           encodeW,
+                                           encodeH,
+                                           blitSrc,
+                                           blitW,
+                                           blitH,
+                                           mappedX - hotMappedX,
+                                           mappedY - hotMappedY);
+                        }
+                    }
+
                     const auto now = std::chrono::steady_clock::now();
                     const int64_t ptsMs =
                         std::chrono::duration_cast<std::chrono::milliseconds>(now - sessionStart)

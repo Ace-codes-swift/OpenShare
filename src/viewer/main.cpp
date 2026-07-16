@@ -39,15 +39,6 @@ struct AppState {
     int frameH = 0;
     bool frameDirty = false;
 
-    std::mutex cursorMutex;
-    std::vector<uint8_t> cursorBgra;
-    uint32_t cursorW = 0;
-    uint32_t cursorH = 0;
-    uint32_t cursorHotX = 0;
-    uint32_t cursorHotY = 0;
-    bool cursorDirty = false;
-    SDL_Cursor* remoteCursor = nullptr;
-
     std::atomic<bool> connected{false};
     std::thread recvThread;
 
@@ -429,6 +420,10 @@ SDL_AppResult SDL_AppInit(void** appstate, int /*argc*/, char** /*argv*/) {
         return SDL_APP_FAILURE;
     }
 
+    // Remote cursor is painted into the video on the companion. Hide the local
+    // OS cursor over this window so you only see the real host pointer.
+    SDL_HideCursor();
+
     // Capture the pointer by value: this callback fires on VideoToolbox's
     // decoder queue long after SDL_AppInit's stack frame is gone.
     app->decoder.start([app](const uint8_t* bgra, int width, int height, size_t /*stride*/) {
@@ -448,26 +443,8 @@ SDL_AppResult SDL_AppInit(void** appstate, int /*argc*/, char** /*argv*/) {
             }
             if (msg->type == MsgType::Video) {
                 app->decoder.decode(msg->payload.data(), msg->payload.size());
-            } else if (msg->type == MsgType::CursorImage) {
-                uint32_t width = 0, height = 0, hotX = 0, hotY = 0;
-                const uint8_t* pixels = nullptr;
-                size_t length = 0;
-                if (parseCursorImage(msg->payload,
-                                     width,
-                                     height,
-                                     hotX,
-                                     hotY,
-                                     pixels,
-                                     length)) {
-                    std::lock_guard<std::mutex> lock(app->cursorMutex);
-                    app->cursorBgra.assign(pixels, pixels + length);
-                    app->cursorW = width;
-                    app->cursorH = height;
-                    app->cursorHotX = hotX;
-                    app->cursorHotY = hotY;
-                    app->cursorDirty = true;
-                }
             }
+            // CursorImage from older companions is ignored — cursor is in-frame.
         }
         app->connected = false;
     });
@@ -582,35 +559,6 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
         }
     }
 
-    {
-        // Cursor creation must happen on SDL's main thread, not on the
-        // VideoToolbox/network worker thread.
-        std::lock_guard<std::mutex> lock(app->cursorMutex);
-        if (app->cursorDirty && !app->cursorBgra.empty()) {
-            SDL_Surface* surface =
-                SDL_CreateSurfaceFrom(static_cast<int>(app->cursorW),
-                                      static_cast<int>(app->cursorH),
-                                      SDL_PIXELFORMAT_BGRA32,
-                                      app->cursorBgra.data(),
-                                      static_cast<int>(app->cursorW * 4));
-            if (surface) {
-                SDL_Cursor* cursor =
-                    SDL_CreateColorCursor(surface,
-                                          static_cast<int>(app->cursorHotX),
-                                          static_cast<int>(app->cursorHotY));
-                SDL_DestroySurface(surface);
-                if (cursor) {
-                    SDL_SetCursor(cursor);
-                    if (app->remoteCursor) {
-                        SDL_DestroyCursor(app->remoteCursor);
-                    }
-                    app->remoteCursor = cursor;
-                }
-            }
-            app->cursorDirty = false;
-        }
-    }
-
     SDL_SetRenderDrawColor(app->renderer, 0, 0, 0, 255);
     SDL_RenderClear(app->renderer);
     if (app->texture) {
@@ -637,10 +585,7 @@ void SDL_AppQuit(void* appstate, SDL_AppResult /*result*/) {
     if (app->texture) {
         SDL_DestroyTexture(app->texture);
     }
-    if (app->remoteCursor) {
-        SDL_SetCursor(nullptr);
-        SDL_DestroyCursor(app->remoteCursor);
-    }
+    SDL_ShowCursor();
     delete app;
     g = nullptr;
 }
