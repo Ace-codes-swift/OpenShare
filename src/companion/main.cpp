@@ -1,7 +1,8 @@
 #include "env.hpp"
 #include "hotp.hpp"
-#include "mac_pairing.hpp"
+#include "mac_cursor.hpp"
 #include "mac_inject.hpp"
+#include "mac_pairing.hpp"
 #include "net.hpp"
 #include "protocol.hpp"
 #include "vt_encoder.hpp"
@@ -347,21 +348,23 @@ int main() {
                     std::lock_guard<std::mutex> lock(cursorMutex);
                     cursorPx = px;
                     cursorPy = py;
+                    // Shape change (non-null img): re-render via NSCursor at
+                    // pointSize * backingScale. screen_capture_lite's TIFF path
+                    // gives Retina bitmaps with point hotspots — arrow/I-beam
+                    // drew 2× too large. Position-only updates keep the bitmap.
                     if (!img) {
                         return;
                     }
-                    const int width = Width(*img);
-                    const int height = Height(*img);
-                    if (width <= 0 || height <= 0 || width > 512 || height > 512) {
+                    std::vector<uint8_t> pixels;
+                    int width = 0, height = 0, hx = 0, hy = 0;
+                    if (!captureSystemCursor(backingScale, pixels, width, height, hx, hy)) {
                         return;
                     }
-                    cursorBgra.resize(static_cast<size_t>(width) * height *
-                                      sizeof(SL::Screen_Capture::ImageBGRA));
-                    SL::Screen_Capture::Extract(*img, cursorBgra.data(), cursorBgra.size());
+                    cursorBgra = std::move(pixels);
                     cursorW = width;
                     cursorH = height;
-                    cursorHotX = std::clamp(mouse.HotSpot.x, 0, width - 1);
-                    cursorHotY = std::clamp(mouse.HotSpot.y, 0, height - 1);
+                    cursorHotX = hx;
+                    cursorHotY = hy;
                     cursorHaveImage = true;
                 })
                 ->start_capturing();

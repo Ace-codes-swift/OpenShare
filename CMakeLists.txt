@@ -57,6 +57,7 @@ endif()
 set(OPENSHARE_COMMON_SOURCES
     src/common/env.cpp
     src/common/hotp.cpp
+    src/common/mac_cursor.mm
     src/common/mac_pairing.mm
     src/common/net.cpp
     src/video/vt_encoder.cpp
