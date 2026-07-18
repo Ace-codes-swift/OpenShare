@@ -1,5 +1,8 @@
 # OpenShare
 
+Copyright (C) 2026 Ace Jones / ATech. Licensed under the GNU GPL v3;
+see [LICENSE.md](LICENSE.md).
+
 macOS remote desktop (v1): control a companion host from a viewer, with Full HD H.264 video and automatic rolling-code auth.
 
 ## Apps

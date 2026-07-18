@@ -10,3 +10,4 @@ cmake-build-*/
 *.dmg
 ~/.openshare/
 .openshare/
+notes.md
