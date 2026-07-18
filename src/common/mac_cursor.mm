@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 namespace openshare {
 
@@ -68,19 +69,28 @@ bool captureSystemCursor(double backingScale,
             return false;
         }
 
-        // Flipped context: AppKit top-left matches our BGRA frame layout.
+        // CGBitmapContext is bottom-up. Draw with a normal (unflipped) AppKit
+        // context, then flip rows so y=0 is the top — matching screen frames.
         NSGraphicsContext* previous = [NSGraphicsContext currentContext];
         NSGraphicsContext* nsCtx =
-            [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:YES];
+            [NSGraphicsContext graphicsContextWithCGContext:ctx flipped:NO];
         [NSGraphicsContext setCurrentContext:nsCtx];
         [image drawInRect:NSMakeRect(0, 0, pw, ph)
                  fromRect:NSZeroRect
                 operation:NSCompositingOperationCopy
-                 fraction:1.0
-            respectFlipped:YES
-                     hints:nil];
+                 fraction:1.0];
         [NSGraphicsContext setCurrentContext:previous];
         CGContextRelease(ctx);
+
+        // Vertical flip: bottom-up bitmap → top-left BGRA for compositing.
+        const size_t stride = static_cast<size_t>(pw) * 4;
+        std::vector<uint8_t> flipped(bgra.size());
+        for (int y = 0; y < ph; ++y) {
+            std::memcpy(flipped.data() + static_cast<size_t>(y) * stride,
+                        bgra.data() + static_cast<size_t>(ph - 1 - y) * stride,
+                        stride);
+        }
+        bgra.swap(flipped);
 
         // Premultiplied → straight alpha for our blit helper.
         for (size_t i = 0; i < bgra.size(); i += 4) {
