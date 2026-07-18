@@ -160,3 +160,7 @@ Remove it with:
 ## Cross-network (later)
 
 Use a TCP tunnel (e.g. Cloudflare Tunnel) to expose `OPENSHARE_PORT` on the companion, then set `OPENSHARE_HOST` on the viewer to the tunnel hostname. The protocol is plain TCP length-prefixed frames — no changes required.
+
+## License
+
+OpenShare is licensed under the [GNU General Public License v3.0](LICENSE.md).
