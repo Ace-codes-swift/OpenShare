@@ -98,7 +98,8 @@ void TcpSocket::enableKeepalive(int idleSec, int intervalSec, int count) {
     }
     int yes = 1;
     setsockopt(fd_, SOL_SOCKET, SO_KEEPALIVE, &yes, sizeof(yes));
-    setsockopt(fd_, IPPROTO_TCP, TCP_KEEPALIVE, &idleSec, sizeof(idleSec));
+    // Linux: TCP_KEEPIDLE (macOS uses TCP_KEEPALIVE for the same idle time).
+    setsockopt(fd_, IPPROTO_TCP, TCP_KEEPIDLE, &idleSec, sizeof(idleSec));
     setsockopt(fd_, IPPROTO_TCP, TCP_KEEPINTVL, &intervalSec, sizeof(intervalSec));
     setsockopt(fd_, IPPROTO_TCP, TCP_KEEPCNT, &count, sizeof(count));
 }
