@@ -60,6 +60,9 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(SDL3 screen_capture_lite)
 
+# Upstream bug: the static target unconditionally links Dwmapi (Windows-only).
+set_target_properties(screen_capture_lite_static PROPERTIES INTERFACE_LINK_LIBRARIES "")
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
                   libavcodec libavutil libswscale)

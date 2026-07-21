@@ -46,7 +46,7 @@ using namespace openshare::protocol;
 namespace {
 
 void quitOtherCompanionInstances() {
-    std::system("systemctl --user stop openshare-companion.service >/dev/null 2>&1");
+    (void)std::system("systemctl --user stop openshare-companion.service >/dev/null 2>&1");
 
     FILE* pipe = popen("pgrep -x OpenShareCompanion", "r");
     if (!pipe) {
