@@ -1,0 +1,59 @@
+# OpenShare
+# Copyright (C) 2026 Ace Jones / ATech
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+name: Build
+
+on:
+  push:
+    branches: [linux]
+  pull_request:
+    branches: [linux]
+  workflow_dispatch:
+
+concurrency:
+  group: linux-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Linux (Ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config git \
+            libx11-dev libxext-dev libxfixes-dev libxtst-dev libxinerama-dev \
+            libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libavcodec-dev libavutil-dev libswscale-dev libx264-dev \
+            libssl-dev \
+            libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
+            libwayland-dev libxkbcommon-dev libibus-1.0-dev
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshare-linux
+          path: |
+            build/OpenShare
+            build/OpenShareCompanion
+            build/libopenshare_client.a
+            build/openshare_client_example
+          if-no-files-found: error
