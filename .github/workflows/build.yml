@@ -1,0 +1,49 @@
+# OpenShare
+# Copyright (C) 2026 Ace Jones / ATech
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+name: Build
+
+on:
+  push:
+    branches: [Mac]
+  pull_request:
+    branches: [Mac]
+  workflow_dispatch:
+
+concurrency:
+  group: mac-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: macOS
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: openshare-macos
+          path: |
+            build/OpenShare.app
+            build/OpenShareCompanion.app
+            build/libopenshare_client.a
+            build/openshare_client_example
+          if-no-files-found: error
