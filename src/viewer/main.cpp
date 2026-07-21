@@ -321,7 +321,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int /*argc*/, char** /*argv*/) {
         if (host.empty()) {
             host = "127.0.0.1";
         }
-        std::cout << "Connecting to " << host << ":" << port << "...\n";
+        std::cout << "Connecting UDP to " << host << ":" << port << "...\n";
         auto s = TcpSocket::connect(host, port);
         if (s) {
             // Never block forever on a wedged/dead worker: bound the

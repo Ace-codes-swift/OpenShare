@@ -155,14 +155,14 @@ Remove it with:
 | Variable | Meaning |
 |----------|---------|
 | `OPENSHARE_HOST` | Companion host (viewer) |
-| `OPENSHARE_PORT` | TCP port |
+| `OPENSHARE_PORT` | UDP port |
 | `OPENSHARE_VIDEO_WIDTH` / `HEIGHT` | Stream resolution (default 1920×1080) |
 | `OPENSHARE_TARGET_FPS` | Capture/encode target |
 | `OPENSHARE_COUNTER_WINDOW` | Max counter look-ahead for resync |
 
 ## Cross-network (later)
 
-Use a TCP tunnel (e.g. Cloudflare Tunnel) to expose `OPENSHARE_PORT` on the companion, then set `OPENSHARE_HOST` on the viewer to the tunnel hostname. The protocol is plain TCP length-prefixed frames — no changes required.
+Use a UDP-capable tunnel to expose `OPENSHARE_PORT` on the companion, then set `OPENSHARE_HOST` on the viewer to the tunnel hostname. The protocol is UDP (`OSUD` fragmented datagrams); late video fragments are dropped instead of stalling.
 
 ## License
 

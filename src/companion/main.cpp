@@ -213,7 +213,7 @@ int main() {
     // Last counter we accepted + 1; any replayed (older) worker counter is rejected.
     uint64_t nextCounter = Hotp::loadCounter("hotp_counter_worker");
 
-    std::cout << "OpenShareCompanion listening on 0.0.0.0:" << port << "\n";
+    std::cout << "OpenShareCompanion listening UDP 0.0.0.0:" << port << "\n";
     std::cout << "Grant Screen Recording + Accessibility permissions if prompted.\n";
 
     std::atomic<bool> running{true};
