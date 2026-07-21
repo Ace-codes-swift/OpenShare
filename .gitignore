@@ -1,0 +1,13 @@
+build/
+build-release/
+dist/
+.env
+.DS_Store
+*.user
+cmake-build-*/
+.idea/
+.vscode/
+*.dmg
+~/.openshare/
+.openshare/
+notes.md

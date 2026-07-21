@@ -1,0 +1,72 @@
+#!/bin/bash
+
+# OpenShare
+# Copyright (C) 2026 Ace Jones / ATech
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+  -m|--message)
+      MESSAGE="$2"
+      shift 2
+      ;;
+    *)
+      echo "Usage: ./push.sh -m \"commit message\""
+      exit 1
+      ;;
+  esac
+done
+
+# Check if message was provided
+if [ -z "$MESSAGE" ]; then
+  echo "Error: Commit message required"
+  echo "Usage: ./push.sh -m \"commit message\""
+  exit 1
+fi
+
+# Add all changes
+echo "Staging changes..."
+git add .
+
+# Commit staged changes
+echo "Committing changes..."
+git commit -m "$MESSAGE"
+
+if [ $? -ne 0 ]; then
+  echo "Error: Commit failed"
+  exit 1
+fi
+
+# Pull latest changes first
+echo "Pulling latest changes..."
+git pull --rebase origin main
+
+if [ $? -ne 0 ]; then
+  echo "Error: Pull failed"
+  exit 1
+fi
+
+# Push to remote
+echo "Pushing to remote..."
+git push origin main
+
+if [ $? -eq 0 ]; then
+  echo "✓ Successfully pushed to repository"
+else
+  echo "Error: Push failed"
+  exit 1
+fi
