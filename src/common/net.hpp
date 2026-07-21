@@ -20,6 +20,7 @@
 
 #include "protocol.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -27,51 +28,86 @@
 
 namespace openshare {
 
-class TcpSocket {
+/// UDP transport for OpenShare (LAN / low-latency).
+/// Large messages (video) are fragmented; Auth/AuthResult are retried until ACK.
+/// API mirrors the old TCP helper so apps can send length-prefixed encode() buffers.
+class UdpSocket {
 public:
-    TcpSocket() = default;
-    explicit TcpSocket(int fd);
-    ~TcpSocket();
+    UdpSocket() = default;
+    explicit UdpSocket(int fd);
+    ~UdpSocket();
 
-    TcpSocket(const TcpSocket&) = delete;
-    TcpSocket& operator=(const TcpSocket&) = delete;
+    UdpSocket(const UdpSocket&) = delete;
+    UdpSocket& operator=(const UdpSocket&) = delete;
 
-    TcpSocket(TcpSocket&& other) noexcept;
-    TcpSocket& operator=(TcpSocket&& other) noexcept;
+    UdpSocket(UdpSocket&& other) noexcept;
+    UdpSocket& operator=(UdpSocket&& other) noexcept;
 
     bool valid() const { return fd_ >= 0; }
     int fd() const { return fd_; }
     void close();
 
-    static std::optional<TcpSocket> listen(uint16_t port, int backlog = 4);
-    static std::optional<TcpSocket> connect(const std::string& host, uint16_t port);
+    /// Bind 0.0.0.0:port (companion).
+    static std::optional<UdpSocket> listen(uint16_t port, int /*backlog*/ = 0);
 
-    std::optional<TcpSocket> accept();
+    /// Create a client socket aimed at host:port (viewer).
+    static std::optional<UdpSocket> connect(const std::string& host, uint16_t port);
+
+    /// Companion: wait until a peer sends a complete message, lock onto that peer,
+    /// and return a session socket (same UDP flow; first message is queued).
+    /// For single-session hosts this returns a moved handle to *this logic via a
+    /// dedicated session object sharing the bound port through peer lock on *this.
+    /// Prefer clearPeer() + recvMessage() on the listen socket; accept() is provided
+    /// for drop-in structure and returns a socket referencing the same fd (moved).
+    std::optional<UdpSocket> accept();
+
+    /// Forget the locked peer so the next packet may come from anyone (new session).
+    void clearPeer();
 
     bool sendAll(const uint8_t* data, size_t len);
     bool sendAll(const std::vector<uint8_t>& data);
 
-    // Blocking read of one protocol message. Returns nullopt on disconnect/error.
     std::optional<protocol::Message> recvMessage();
 
-    // Non-blocking poll: true if data may be readable.
     bool waitReadable(int timeoutMs);
 
     void setBlocking(bool blocking);
-
-    // 0 disables the timeout (blocking forever). A timed-out recv/send is
-    // reported as a failure by recvMessage/sendAll.
     void setRecvTimeout(int ms);
     void setSendTimeout(int ms);
 
-    // Detect silently-dead peers (sleep, crash, network drop) instead of
-    // blocking on them forever.
+    /// No-op on UDP (kept so call sites compile).
     void enableKeepalive(int idleSec = 5, int intervalSec = 5, int count = 3);
 
 private:
-    bool recvExact(uint8_t* buf, size_t len);
+    bool sendMessage(protocol::MsgType type, const uint8_t* payload, size_t len, bool reliable);
+    bool sendRawPacket(const uint8_t* data, size_t len);
+    void pumpIncoming(int waitMs);
 
     int fd_ = -1;
+    bool ownsFd_ = true;
+
+    bool havePeer_ = false;
+    uint8_t peerAddr_[128]{};
+    uint32_t peerAddrLen_ = 0;
+
+    int recvTimeoutMs_ = 0;
+    uint32_t nextMsgId_ = 1;
+    uint32_t lastAckMsgId_ = 0;
+
+    struct Assembler {
+        uint32_t msgId = 0;
+        protocol::MsgType type{};
+        uint16_t fragCount = 0;
+        std::vector<std::vector<uint8_t>> frags;
+        std::vector<uint8_t> have;
+        size_t got = 0;
+        std::chrono::steady_clock::time_point started{};
+    };
+    Assembler asm_{};
+    std::vector<protocol::Message> inbox_;
 };
+
+// Back-compat alias while call sites migrate.
+using TcpSocket = UdpSocket;
 
 } // namespace openshare

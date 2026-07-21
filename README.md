@@ -3,7 +3,7 @@
 Copyright (C) 2026 Ace Jones / ATech. Licensed under the GNU GPL v3;
 see [LICENSE.md](LICENSE.md).
 
-Both platforms speak the **same TCP wire protocol** (length-prefixed frames,
+Both platforms speak the **same UDP wire protocol** (fragmented datagrams,
 H.264 Annex-B video, HOTP rolling codes, macOS virtual keycodes on the wire),
 so:
 
@@ -69,7 +69,7 @@ cp .env.example .env
 | Variable | Meaning |
 |----------|---------|
 | `OPENSHARE_HOST` | Optional viewer override for companion address |
-| `OPENSHARE_PORT` | TCP port (default 9000) |
+| `OPENSHARE_PORT` | UDP port (default 9000) |
 | `OPENSHARE_VIDEO_WIDTH` / `HEIGHT` | Stream size (`0` / unset = native capture) |
 | `OPENSHARE_TARGET_FPS` | Capture/encode target |
 | `OPENSHARE_COUNTER_WINDOW` | HOTP look-ahead for resync |

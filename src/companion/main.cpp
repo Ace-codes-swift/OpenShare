@@ -195,7 +195,7 @@ int main() {
 
     const auto [displayW, displayH] = primaryDisplaySize();
 
-    std::cout << "OpenShareCompanion listening on 0.0.0.0:" << port << "\n";
+    std::cout << "OpenShareCompanion listening UDP 0.0.0.0:" << port << "\n";
 
     int hostScreenW = 0;
     int hostScreenH = 0;

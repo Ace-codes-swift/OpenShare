@@ -26,7 +26,8 @@
 namespace openshare {
 namespace protocol {
 
-inline constexpr uint8_t kVersion = 1;
+// Wire/auth version 2: UDP transport ('OSUD' datagrams) with fragmented video.
+inline constexpr uint8_t kVersion = 2;
 
 enum class MsgType : uint8_t {
     Auth = 1,
@@ -37,6 +38,7 @@ enum class MsgType : uint8_t {
     MouseWheel = 6,
     Key = 7,
     CursorImage = 8,
+    Ack = 9,
 };
 
 struct Message {
